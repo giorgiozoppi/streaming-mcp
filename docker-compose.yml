@@ -1,0 +1,55 @@
+services:
+  # MySQL Database with mcp-user setup
+  mysql:
+    image: mysql:8.0
+    container_name: mcp-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: mcp-root-password
+      MYSQL_DATABASE: mcp_demo
+      MYSQL_USER: mcp-user
+      MYSQL_PASSWORD: mcp-password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql_setup.sql:/docker-entrypoint-initdb.d/setup.sql:ro
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "mcp-user", "-pmcp-password"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - mcp-network
+
+
+  # MCP Server (Development with hot reload)
+  langchain-streaming-mcp-dev:
+    container_name: mcp-server-dev
+    ports:
+      - "8000:8000"
+    environment:
+      - LOG_LEVEL=debug
+      # MySQL connection settings
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=mcp-user
+      - MYSQL_PASSWORD=mcp-password
+      - MYSQL_DATABASE=mcp_demo
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - mcp-network
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  mcp-network:
+    driver: bridge
